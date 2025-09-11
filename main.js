@@ -65,23 +65,27 @@ async function runOnceMainnet() {
             ? [result.calc.clampMin, result.calc.clampMax] : null);
 
     // Push metrics to Pushgateway
-    const labels = { network: 'mainnet', epoch: result.epoch != null ? String(result.epoch) : 'unknown' };
+    const labels = {
+        project: 'sui',
+        env: 'mainnet',
+        type: 'ui',
+        subtype: 'rgp',
+        epoch: result?.epoch != null ? String(result.epoch) : 'unknown',
+    };
     try {
         await pushGauge({
             name: 'sui_reference_gas_price_proposed_mist',
             help: 'Proposed reference gas price (MIST)',
             labels,
             value: proposed,
-            job: 'sui_rgp',
-            groupings: { env: 'mainnet' },
+            job: 'platform',
         });
         await pushGauge({
             name: 'sui_reference_gas_price_current_mist',
             help: 'Current reference gas price at time of proposal (MIST)',
             labels,
             value: result.inputs.currentRgp,
-            job: 'sui_rgp',
-            groupings: { env: 'mainnet' },
+            job: 'platform',
         });
     } catch (e) {
         console.error('[pushgateway] push failed:', e?.message || e);

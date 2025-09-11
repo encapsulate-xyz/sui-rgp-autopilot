@@ -2,44 +2,42 @@
 const client = require('prom-client');
 require('dotenv').config();
 
-const gateway = new client.Pushgateway(process.env.PUSHGATEWAY_URL, {timeout: 5000});
+const gateway = new client.Pushgateway(process.env.PUSHGATEWAY_URL, { timeout: 5000 });
 
 /**
- * Push a single gauge sample to Pushgateway.
- * Prometheus will record the sample at scrape time (no need to send timestamps).
+ * Push a single gauge sample to Pushgateway using ONLY metric labels.
+ * Works across prom-client versions because it uses the global registry.
  *
  * @param {Object} opts
- * @param {string} opts.name        metric name, e.g. 'sui_reference_gas_price'
- * @param {string} opts.help        metric help string
- * @param {Object} opts.labels      label values, eg { network:'mainnet', validator:'val-01', epoch:'856' }
- * @param {number} opts.value       numeric metric value (e.g., 500 for 500 MIST)
- * @param {string} [opts.job='sui_rgp']  pushgateway job name
- * @param {Object} [opts.groupings] pushgateway groupings (e.g., { instance: 'val-01' })
+ * @param {string} opts.name   Metric name, e.g. 'sui_reference_gas_price_proposed_mist'
+ * @param {string} opts.help   Help string
+ * @param {Object} opts.labels Metric label values, e.g. { network:'mainnet', epoch:'882' }
+ * @param {number} opts.value  Numeric metric value
+ * @param {string} [opts.job='sui_rgp'] Pushgateway job name
  */
-async function pushGauge({name, help, labels, value, job = 'sui_rgp', groupings = {}}) {
-    // Build a private registry per push to avoid global state
-    const registry = new client.Registry();
+async function pushGauge({ name, help, labels = {}, value, job = 'platform' }) {
+    const labelNames = Object.keys(labels);
 
-    const labelNames = Object.keys(labels || {});
-    const gauge = new client.Gauge({
-        name,
-        help,
-        labelNames,
-        registers: [registry],
-    });
+    // Create the gauge in the global registry (version-safe)
+    const gauge = new client.Gauge({ name, help, labelNames });
 
-    // Set the value with labels. DO NOT pass a timestamp here.
-    gauge.set(labels || {}, Number(value));
+    // Validate and set value
+    const v = Number(value);
+    if (!Number.isFinite(v)) throw new Error(`Invalid value for ${name}: ${value}`);
+    gauge.set(labels, v);
 
-    // Push (add) to pushgateway under a job and optional groupings (e.g., instance)
-    await gateway.pushAdd({jobName: job, groupings}, registry)
+    // Push to:  <PUSHGATEWAY_URL>/metrics/job/<job>
+    await gateway.pushAdd({ jobName: job })
         .then(() => {
-            console.log(`[pushgateway] pushed ${name}=${value} with labels ${JSON.stringify(labels)} at ${new Date().toISOString()}`);
+            console.log(`[pushgateway] pushed ${name}=${v} labels=${JSON.stringify(labels)} job=${job} at ${new Date().toISOString()}`);
         })
         .catch((err) => {
-            console.error('[pushgateway] push failed:', err.message || err);
+            console.error('[pushgateway] push failed:', err?.message || err);
             throw err;
         });
+
+    // Clean the global registry so the next push starts fresh
+    client.register.clear();
 }
 
-module.exports = {pushGauge};
+module.exports = { pushGauge };
