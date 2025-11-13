@@ -2,7 +2,12 @@
 const client = require('prom-client');
 require('dotenv').config();
 
-const gateway = new client.Pushgateway(process.env.PUSHGATEWAY_URL, { timeout: 5000 });
+const gateway = new client.Pushgateway(process.env.PUSHGATEWAY_URL, {
+    timeout: 5000,
+    headers: {
+        'Authorization': `Basic ${process.env.PUSHGATEWAY_AUTH_HEADER}`,
+    }
+  });
 
 /**
  * Push a single gauge sample to Pushgateway using ONLY metric labels.
