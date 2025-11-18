@@ -70,7 +70,6 @@ async function runOnceMainnet() {
         env: 'mainnet',
         type: 'ui',
         subtype: 'rgp',
-        epoch: result?.epoch != null ? String(result.epoch) : 'unknown',
     };
     try {
         await pushGauge({
