@@ -17,7 +17,7 @@ const fs = require("fs");
 
 const ENDPOINT =
     process.env.SUI_GRAPHQL_URL ||
-    'https://sui-mainnet.mystenlabs.com/graphql';
+    'https://graphql.mainnet.sui.io/graphql';
 
 const QUERY = `
 query Epochs {
