@@ -2,11 +2,11 @@
   "name": "sui-rgp-automation",
   "version": "1.0.0",
   "dependencies": {
-    "@mysten/sui.js": "^0.32.2",
+    "@mysten/sui.js": "^0.54.1",
     "axios": "^1.15.0",
     "coingecko-api": "^1.0.10",
     "dotenv": "^16.0.3",
-    "node-cron": "^3.0.2",
+    "node-cron": "^4.2.1",
     "prom-client": "^14.2.0"
   },
   "scripts": {
