@@ -21,6 +21,9 @@ const gateway = new client.Pushgateway(process.env.PUSHGATEWAY_URL, {
  * @param {string} [opts.job='sui_rgp'] Pushgateway job name
  */
 async function pushGauge({ name, help, labels = {}, value, job = 'platform' }) {
+    // Clean the global registry at the start to ensure a fresh state
+    client.register.clear();
+
     const labelNames = Object.keys(labels);
 
     // Create the gauge in the global registry (version-safe)
@@ -31,18 +34,17 @@ async function pushGauge({ name, help, labels = {}, value, job = 'platform' }) {
     if (!Number.isFinite(v)) throw new Error(`Invalid value for ${name}: ${value}`);
     gauge.set(labels, v);
 
-    // Push to:  <PUSHGATEWAY_URL>/metrics/job/<job>
-    await gateway.pushAdd({ jobName: job })
-        .then(() => {
-            console.log(`[pushgateway] pushed ${name}=${v} labels=${JSON.stringify(labels)} job=${job} at ${new Date().toISOString()}`);
-        })
-        .catch((err) => {
-            console.error('[pushgateway] push failed:', err?.message || err);
-            throw err;
-        });
-
-    // Clean the global registry so the next push starts fresh
-    client.register.clear();
+    try {
+        // Push to:  <PUSHGATEWAY_URL>/metrics/job/<job>
+        await gateway.pushAdd({ jobName: job });
+        console.log(`[pushgateway] pushed ${name}=${v} labels=${JSON.stringify(labels)} job=${job} at ${new Date().toISOString()}`);
+    } catch (err) {
+        console.error('[pushgateway] push failed:', err?.message || err);
+        throw err;
+    } finally {
+        // Clean the global registry so the next push starts fresh
+        client.register.clear();
+    }
 }
 
 module.exports = { pushGauge };
