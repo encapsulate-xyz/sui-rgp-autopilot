@@ -1,13 +1,13 @@
+const { SuiClient } = require("@mysten/sui.js/client");
+const { TransactionBlock } = require("@mysten/sui.js/transactions");
+const { Ed25519Keypair } = require("@mysten/sui.js/keypairs/ed25519");
 const {
-    RawSigner,
-    TransactionBlock,
-    JsonRpcProvider,
-    Connection,
-    Ed25519Keypair,
     PRIVATE_KEY_SIZE,
     SIGNATURE_SCHEME_TO_FLAG,
-    fromB64,
-} = require("@mysten/sui.js");
+    SUI_PRIVATE_KEY_PREFIX,
+    decodeSuiPrivateKey,
+} = require("@mysten/sui.js/cryptography");
+const { fromB64, SUI_SYSTEM_STATE_OBJECT_ID } = require("@mysten/sui.js/utils");
 
 const updateGasPrice = async (
     network,
@@ -18,21 +18,22 @@ const updateGasPrice = async (
     gasPrice
 ) => {
     try {
-        const provider = getProvider(rpc);
-        const signer = getSigner(privateKey, provider);
+        const client = getClient(rpc);
+        const signer = getSigner(privateKey);
 
         const tx = new TransactionBlock();
         tx.setGasBudget(parseInt(gasBudget));
         tx.moveCall({
             target: "0x3::sui_system::request_set_gas_price",
             arguments: [
-                tx.pure("0x5"),
+                tx.object(SUI_SYSTEM_STATE_OBJECT_ID),
                 tx.object(OpCapId),
-                tx.pure(gasPrice),
+                tx.pure.u64(gasPrice),
             ],
         });
         console.log("Updating gas price...");
-        const result = await signer.signAndExecuteTransactionBlock({
+        const result = await client.signAndExecuteTransactionBlock({
+            signer,
             transactionBlock: tx,
             options: {
                 showEffects: true,
@@ -57,17 +58,23 @@ module.exports = {
     updateGasPrice,
 };
 
-function getProvider(fullnode, faucet) {
-    console.log("Getting provider...");
-    const connection = new Connection({
-        fullnode: fullnode,
-        faucet: faucet,
-    });
-    return new JsonRpcProvider(connection);
+function getClient(fullnode) {
+    console.log("Getting client...");
+    return new SuiClient({ url: fullnode });
 }
 
-function getSigner(privateKey, provider) {
+function getSigner(privateKey) {
     console.log("Getting signer...");
+    // Bech32 "suiprivkey1..." format
+    if (privateKey.startsWith(SUI_PRIVATE_KEY_PREFIX)) {
+        const { schema, secretKey } = decodeSuiPrivateKey(privateKey);
+        if (schema !== "ED25519") {
+            throw new Error("invalid key");
+        }
+        return Ed25519Keypair.fromSecretKey(secretKey);
+    }
+
+    // Legacy base64 format: flag byte + 32-byte secret key
     const raw = fromB64(privateKey);
     if (
         raw[0] !== SIGNATURE_SCHEME_TO_FLAG.ED25519 ||
@@ -76,6 +83,5 @@ function getSigner(privateKey, provider) {
         throw new Error("invalid key");
     }
 
-    const keypair = Ed25519Keypair.fromSecretKey(raw.slice(1));
-    return new RawSigner(keypair, provider);
+    return Ed25519Keypair.fromSecretKey(raw.slice(1));
 }
