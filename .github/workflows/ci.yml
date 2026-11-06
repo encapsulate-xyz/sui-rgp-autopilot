@@ -1,6 +1,7 @@
 name: CI
 
-# Installs the dependencies from the lockfile on every pull request and push to main (the project has no build step).
+# Installs the dependencies from the lockfile and syntax-checks every script on every pull request and push to main
+# (the project has no build step).
 # This check must pass before a pull request into main can be merged.
 on:
   pull_request:
@@ -25,7 +26,10 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 20.19.3    # what the hosts run: node.version in platform-ansible group_vars/default.yml
           cache: npm
 
       - run: npm ci --no-audit --no-fund
+
+      # npm ci doesn't read the code, so also parse every tracked script: a syntax error fails here, not on the host.
+      - run: git ls-files '*.js' '*.mjs' | xargs -n1 node --check
